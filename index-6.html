@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="sw" class="h-full bg-slate-50">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Mickster Vault Support</title>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script>
+tailwind.config = { theme: { extend: {
+  fontFamily: { sans: ['Outfit', 'sans-serif'] },
+  colors: { brand: { 50:'#f0fdf4',100:'#dcfce7',500:'#22c55e',600:'#16a34a',700:'#15803d' } }
+}}}
+</script>
+<style>
+  .chat-scroll::-webkit-scrollbar{width:4px}
+  .chat-scroll::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:4px}
+  @keyframes fade-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .animate-fade-in{animation:fade-in .25s ease-out}
+  @keyframes dot{0%,80%,100%{opacity:.25}40%{opacity:1}}
+  .typing span{display:inline-block;width:6px;height:6px;margin:0 2px;border-radius:50%;background:#94a3b8;animation:dot 1.2s infinite}
+  .typing span:nth-child(2){animation-delay:.2s}.typing span:nth-child(3){animation-delay:.4s}
+  @media (prefers-reduced-motion:reduce){.animate-fade-in,.typing span{animation:none}}
+  #user-modal{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+</style>
+</head>
+<body class="h-full font-sans antialiased bg-slate-100 flex flex-col justify-center items-center sm:p-4">
+
+<div class="w-full max-w-md h-full sm:h-[92vh] sm:rounded-2xl bg-white shadow-xl flex flex-col overflow-hidden relative border border-slate-200">
+
+  <header class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-3.5 flex items-center justify-between shadow-md z-10">
+    <div class="flex items-center space-x-3">
+      <div class="relative">
+        <div class="w-10 h-10 rounded-full bg-brand-600 flex items-center justify-center font-bold text-sm ring-2 ring-brand-500/50">MV</div>
+        <span id="status-dot" class="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-slate-900 rounded-full"></span>
+      </div>
+      <div>
+        <h1 class="font-bold text-sm tracking-wide flex items-center gap-1.5">Mickster Vault <i class="fa-solid fa-circle-check text-brand-500 text-xs"></i></h1>
+        <p id="chat-status-text" class="text-[11px] text-slate-300 flex items-center gap-1">
+          <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Bot Assistant (Kiotomatiki)
+        </p>
+      </div>
+    </div>
+    <button id="reset-session-btn" title="Anza upya chat" aria-label="Anza upya chat" class="p-2 text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-full transition text-xs">
+      <i class="fa-solid fa-rotate-right"></i>
+    </button>
+  </header>
+
+  <!-- Registration modal: name + phone both required -->
+  <div id="user-modal" class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white w-full rounded-2xl p-6 shadow-2xl max-w-xs text-center space-y-4 animate-fade-in">
+      <div class="w-14 h-14 bg-brand-100 text-brand-600 rounded-full flex items-center justify-center mx-auto text-2xl"><i class="fa-solid fa-comments"></i></div>
+      <div>
+        <h2 class="text-lg font-bold text-slate-800">Karibu Mickster Vault</h2>
+        <p class="text-xs text-slate-500 mt-1">Weka jina na namba yako ya simu ili tuanze.</p>
+      </div>
+      <form id="user-form" class="space-y-3 text-left" novalidate>
+        <div>
+          <label for="user-name-input" class="block text-xs font-medium text-slate-600 mb-1">Jina</label>
+          <input type="text" id="user-name-input" autocomplete="name" placeholder="k.m. Frank" class="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition">
+          <p id="name-error" class="hidden text-[11px] text-red-600 mt-1"></p>
+        </div>
+        <div>
+          <label for="user-phone-input" class="block text-xs font-medium text-slate-600 mb-1">Namba ya simu</label>
+          <input type="tel" id="user-phone-input" inputmode="tel" autocomplete="tel" placeholder="0712 345 678" class="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition">
+          <p id="phone-error" class="hidden text-[11px] text-red-600 mt-1"></p>
+        </div>
+        <button type="submit" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-medium py-2.5 rounded-xl text-sm shadow-lg shadow-brand-600/30 transition active:scale-95">
+          Anza chat <i class="fa-solid fa-paper-plane ml-1"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <main id="chat-box" class="flex-1 p-3.5 overflow-y-auto space-y-3 chat-scroll bg-slate-50" aria-live="polite"></main>
+
+  <div id="quick-chips" class="px-3 py-2 bg-slate-100 border-t border-slate-200/60 flex items-center gap-2 overflow-x-auto whitespace-nowrap hidden"></div>
+
+  <footer class="p-3 bg-white border-t border-slate-200 shadow-lg" style="padding-bottom:max(.75rem,env(safe-area-inset-bottom,0px))">
+    <form id="chat-form" class="flex items-center gap-2">
+      <input type="text" id="chat-input" placeholder="Andika namba au ujumbe..." autocomplete="off" class="flex-1 px-3.5 py-2.5 bg-slate-100 border border-slate-200 text-slate-800 text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white transition">
+      <button type="submit" aria-label="Tuma" class="w-10 h-10 bg-brand-600 hover:bg-brand-700 active:scale-95 text-white rounded-xl flex items-center justify-center shadow-md transition shrink-0">
+        <i class="fa-solid fa-paper-plane text-sm"></i>
+      </button>
+    </form>
+  </footer>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getDatabase, ref, set, update, onValue, push, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBXLW5Vq7dbpxh750DGCIia-camkIiJ1S8",
+  authDomain: "moby-42aca.firebaseapp.com",
+  databaseURL: "https://moby-42aca-default-rtdb.firebaseio.com",
+  projectId: "moby-42aca",
+  storageBucket: "moby-42aca.firebasestorage.app",
+  messagingSenderId: "170893692184",
+  appId: "1:170893692184:web:1ea7276b746260789da26d",
+  measurementId: "G-8VQR2W9EGM"
+};
+const db = getDatabase(initializeApp(firebaseConfig));
+
+let currentUser = null, sessionId = null, isLiveChat = false;
+let currentMenuPath = [], localBotSettings = null, lang = null;
+let unsubs = [], renderedKeys = new Set();
+
+const $ = id => document.getElementById(id);
+const userModal = $('user-modal'), userForm = $('user-form');
+const nameInput = $('user-name-input'), phoneInput = $('user-phone-input');
+const nameError = $('name-error'), phoneError = $('phone-error');
+const chatBox = $('chat-box'), chatForm = $('chat-form'), chatInput = $('chat-input');
+const quickChips = $('quick-chips'), chatStatusText = $('chat-status-text'), statusDot = $('status-dot');
+
+const defaultMenuTree = {
+  welcome_message: "Karibu Mickster Vault Huduma kwa Wateja! 👋\n\nFor English press 1\nKwa Kiswahili bonyeza 2",
+  options: {
+    "1": { title: "English",
+      text: "Mickster Vault Customer Service Options:\n1. Download Bus Games (Tanzania Mods)\n2. Game Settings Tutorials\n3. eFootball Patch Updates\n4. Talk to Live Customer Agent\n0. Back to Main Menu",
+      options: {
+        "1": { title: "Bus Games", text: "🚌 Tanzania Bus Simulator Mods:\nClick the link below to download the latest buses and maps.", media_url: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=600&auto=format&fit=crop&q=60", link: "https://mickstervault.com/bussid-mods" },
+        "2": { title: "Game Settings", text: "⚙️ Complete settings guide video for optimal graphics and no lag:", video_url: "https://www.w3schools.com/html/mov_bbb.mp4" },
+        "3": { title: "eFootball", text: "⚽ eFootball 2026 Android Patch & Transfers Update is available now!", media_url: "https://images.unsplash.com/photo-1579952318891-220a221f92e4?w=600&auto=format&fit=crop&q=60", link: "https://mickstervault.com/efootball-patch" },
+        "4": { title: "Talk to Agent", text: "Connecting you to an agent... Please wait.", action: "LIVE_CHAT" }
+      } },
+    "2": { title: "Kiswahili",
+      text: "Huduma zetu za Mickster Vault:\n1. Unahitaji Game za Bus za Tanzania\n2. Setting za Game (Picha na Video)\n3. eFootball Patch & Update\n4. Ongea na Mhudumu (Live Support)\n0. Rudi kwenye Menyu Kuu",
+      options: {
+        "1": { title: "Game za Bus", text: "🚌 Game za Bus za Tanzania na Livery za Kisarawi, Abood, Shabiby:\nBonyeza link hapa chini kupakua moja kwa moja.", media_url: "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=600&auto=format&fit=crop&q=60", link: "https://mickstervault.com/sw/bus-games" },
+        "2": { title: "Setting za Game", text: "⚙️ Tazama mafunzo haya ya video jinsi ya kuweka setting za Graphics vizuri bila simu kuwaka moto au ku-lag:", video_url: "https://www.w3schools.com/html/mov_bbb.mp4" },
+        "3": { title: "eFootball Patch", text: "⚽ eFootball Patch mpya yenye Ligi Kuu na Jezi mpya.", media_url: "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600&auto=format&fit=crop&q=60", link: "https://mickstervault.com/sw/efootball" },
+        "4": { title: "Ongea na Mhudumu", text: "Tunakuunganisha na Mhudumu wetu sasa hivi. Andika swali lako hapa...", action: "LIVE_CHAT" }
+      } }
+  }
+};
+
+/* ---------- helpers ---------- */
+const nowStr = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const escapeHtml = s => String(s ?? '').replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const safeUrl = u => /^https?:\/\//i.test(u || '') ? escapeHtml(u) : '';
+const formatText = t => escapeHtml(t).replace(/\*(.*?)\*/g, '<strong>$1</strong>');
+const scrollToBottom = () => setTimeout(() => { chatBox.scrollTop = chatBox.scrollHeight; }, 50);
+
+// Phone: returns normalized "+255..." or null if invalid
+function normalizePhone(raw) {
+  const p = (raw || '').replace(/[\s\-().]/g, '');
+  if (/^0[67]\d{8}$/.test(p)) return '+255' + p.slice(1);   // 0712345678
+  if (/^\+?255[67]\d{8}$/.test(p)) return '+' + p.replace('+', ''); // 255712345678
+  if (/^\+[1-9]\d{8,14}$/.test(p)) return p;                // other countries
+  return null;
+}
+function showError(el, input, msg) {
+  el.textContent = msg; el.classList.remove('hidden');
+  input.classList.add('border-red-500'); input.setAttribute('aria-invalid', 'true');
+}
+function clearError(el, input) {
+  el.classList.add('hidden'); input.classList.remove('border-red-500'); input.removeAttribute('aria-invalid');
+}
+nameInput.addEventListener('input', () => clearError(nameError, nameInput));
+phoneInput.addEventListener('input', () => clearError(phoneError, phoneInput));
+
+/* ---------- session ---------- */
+function initSession() {
+  try {
+    const u = JSON.parse(localStorage.getItem('mv_chatbot_user') || 'null');
+    const s = localStorage.getItem('mv_chatbot_session_id');
+    if (u && u.name && u.phone && s) {
+      currentUser = u; sessionId = s;
+      userModal.classList.add('hidden');
+      startBotEngine();
+      return;
+    }
+  } catch (e) { /* ignore corrupt storage */ }
+  // Missing or old record without phone: ask again (prefill name)
+  try { const old = JSON.parse(localStorage.getItem('mv_chatbot_user') || 'null'); if (old?.name) nameInput.value = old.name; } catch (e) {}
+  userModal.classList.remove('hidden');
+}
+
+userForm.addEventListener('submit', e => {
+  e.preventDefault();
+  const name = nameInput.value.trim();
+  const phone = normalizePhone(phoneInput.value);
+  let ok = true;
+
+  if (name.length < 2) { showError(nameError, nameInput, 'Andika jina lako (angalau herufi 2).'); ok = false; }
+  if (!phoneInput.value.trim()) { showError(phoneError, phoneInput, 'Namba ya simu inahitajika.'); ok = false; }
+  else if (!phone) { showError(phoneError, phoneInput, 'Namba si sahihi. Mfano: 0712 345 678 au +255712345678.'); ok = false; }
+  if (!ok) { (name.length < 2 ? nameInput : phoneInput).focus(); return; }
+
+  currentUser = { name, phone };
+  sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  try {
+    localStorage.setItem('mv_chatbot_user', JSON.stringify(currentUser));
+    localStorage.setItem('mv_chatbot_session_id', sessionId);
+  } catch (e) {}
+
+  set(ref(db, `chats/${sessionId}`), {
+    user: currentUser, created_at: serverTimestamp(), is_live_chat: false,
+    last_updated: serverTimestamp(), unread_admin: false
+  }).catch(console.error);
+
+  userModal.classList.add('hidden');
+  startBotEngine();
+});
+
+function stopListeners() { unsubs.forEach(f => f()); unsubs = []; renderedKeys = new Set(); }
+
+function startBotEngine() {
+  stopListeners();
+  unsubs.push(onValue(ref(db, 'bot_settings'), snap => {
+    const data = snap.val();
+    localBotSettings = data && data.menus ? data.menus : defaultMenuTree;
+    if (chatBox.children.length === 0) renderBotWelcome();
+  }));
+
+  unsubs.push(onValue(ref(db, `chats/${sessionId}`), snap => {
+    const data = snap.val();
+    if (!data) return;
+    if (!!data.is_live_chat !== isLiveChat) { isLiveChat = !!data.is_live_chat; updateUIForLiveChat(isLiveChat); }
+  }));
+
+  // Live-chat messages: Firebase is the single source of truth (no local echo, no duplicates)
+  unsubs.push(onValue(ref(db, `chats/${sessionId}/messages`), snap => {
+    const map = snap.val();
+    if (map) syncMessages(map);
+  }));
+}
+
+/* ---------- bot ---------- */
+const isV2 = () => !!(localBotSettings && localBotSettings.v === 2);
+const titleOf = o => (lang === 'en' && o.title_en) || o.title || '';
+function nodeText(n, isRoot) {
+  const L = k => (lang === 'en' && n[k + '_en']) || n[k] || '';
+  const base = isRoot ? L('welcome_desc') : L('desc');
+  if (!n.options) return base;
+  const list = Object.keys(n.options).sort((a, b) => a - b).filter(k => n.options[k]).map(k => `${k}. ${titleOf(n.options[k])}`).join('\n');
+  return (base ? base + '\n\n' : '') + list + (isRoot ? '\n00. 🌐 Language' : '\n' + (lang === 'en' ? '0. Back' : '0. Rudi nyuma'));
+}
+const levelText = l => isV2() ? nodeText(l, currentMenuPath.length === 0) : (l.text || l.welcome_message || "Menyu Kuu:");
+
+function renderBotWelcome() { if (isV2() && !lang) askLanguage(); else showWelcome(); }
+function askLanguage() {
+  appendMessage({ sender: 'bot', text: "Chagua lugha / Choose your language:\n1. Kiswahili 🇹🇿\n2. English 🇬🇧", time: nowStr() });
+  quickChips.innerHTML = ''; quickChips.classList.remove('hidden');
+  [['1', 'Kiswahili'], ['2', 'English']].forEach(([k, label]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+    b.className = "bg-white hover:bg-brand-50 border border-slate-300 hover:border-brand-500 text-slate-700 text-xs font-medium px-3 py-1.5 rounded-full shadow-sm active:scale-95 shrink-0";
+    b.addEventListener('click', () => handleUserInput(k)); quickChips.appendChild(b);
+  });
+}
+function pickLanguage(k) {
+  const x = k.toLowerCase();
+  if (k === '1' || x.startsWith('sw') || x.startsWith('kis')) lang = 'sw';
+  else if (k === '2' || x.startsWith('en')) lang = 'en';
+  else { botReply({ text: 'Tafadhali chagua 1 au 2 / Please choose 1 or 2.' }); return; }
+  currentMenuPath = []; showWelcome();
+}
+function showWelcome() {
+  const root = localBotSettings || defaultMenuTree;
+  botReply({ text: isV2() ? nodeText(root, true) : root.welcome_message }, () => updateQuickChips(root));
+}
+
+function currentLevel() {
+  let lvl = localBotSettings || defaultMenuTree;
+  for (const k of currentMenuPath) if (lvl?.options?.[k]) lvl = lvl.options[k];
+  return lvl;
+}
+
+function botReply(msg, after) {
+  const typing = showTyping();
+  setTimeout(() => { typing.remove(); appendMessage({ ...msg, sender: 'bot', time: nowStr() }); after && after(); }, 450);
+}
+
+function handleUserInput(input) {
+  const text = input.trim();
+  if (!text) return;
+  chatInput.value = '';
+
+  if (isLiveChat) {
+    push(ref(db, `chats/${sessionId}/messages`), {
+      sender: 'user', sender_name: currentUser.name, text, timestamp: serverTimestamp()
+    }).catch(() => appendMessage({ sender: 'system', text: '⚠️ Ujumbe haukutumwa. Angalia mtandao wako.' }));
+    update(ref(db, `chats/${sessionId}`), { last_updated: serverTimestamp(), unread_admin: true });
+    return;
+  }
+
+  appendMessage({ sender: 'user', text, time: nowStr() });
+  processBotNavigation(text);
+}
+
+function processBotNavigation(key) {
+  if (isV2() && !lang) { pickLanguage(key); return; }
+  if (isV2() && key === "00") { lang = null; currentMenuPath = []; askLanguage(); return; }
+  if (key === "0") {
+    if (currentMenuPath.length > 0) currentMenuPath.pop();
+    const lvl = currentLevel();
+    botReply({ text: levelText(lvl) }, () => updateQuickChips(lvl));
+    return;
+  }
+
+  const lvl = currentLevel();
+  const opt = lvl?.options?.[key];
+
+  if (!opt) {
+    botReply({ text: lang === 'en' ? `⚠️ Option "${key}" is not available. Please choose a number from the menu.` : `⚠️ Chaguo "${key}" halipo. Tafadhali chagua namba iliyo kwenye menyu.` });
+    return;
+  }
+  if (opt.action === "LIVE_CHAT") {
+    const lt = isV2() ? nodeText(opt, false) : opt.text;
+    switchToLiveAgentMode(lt || (lang === 'en' ? 'Connecting you to an agent... Type your question here.' : undefined));
+    return;
+  }
+
+  const content = { text: isV2() ? (nodeText(opt, false) || titleOf(opt)) : opt.text, media_url: opt.media_url, video_url: opt.video_url, link: opt.link, link_label: (lang === 'en' && opt.link_label_en) || opt.link_label };
+
+  if (opt.options) {
+    currentMenuPath.push(key);
+    botReply(content, () => updateQuickChips(opt));
+  } else {
+    // Leaf: show content, keep sibling options + back available
+    botReply(content, () => {
+      appendMessage({ sender: 'bot', text: lang === 'en' ? "📌 Choose another number, or press 0 to go back." : "📌 Chagua namba nyingine, au bonyeza 0 kurudi nyuma.", time: nowStr() });
+      updateQuickChips(lvl);
+    });
+  }
+}
+
+function switchToLiveAgentMode(text) {
+  isLiveChat = true;
+  updateUIForLiveChat(true);
+  quickChips.classList.add('hidden');
+  update(ref(db, `chats/${sessionId}`), { is_live_chat: true, unread_admin: true, last_updated: serverTimestamp() });
+  appendMessage({ sender: 'system', text: text || "👨‍💻 Umeunganishwa na Mhudumu. Andika ujumbe wako hapa." });
+  // Notice for admin only; flagged so the customer's screen doesn't repeat it
+  push(ref(db, `chats/${sessionId}/messages`), {
+    sender: 'system', internal: true,
+    text: `🔔 Mteja ${currentUser.name} (${currentUser.phone}) ameomba kuongea na mhudumu.`,
+    timestamp: serverTimestamp()
+  });
+}
+
+function updateUIForLiveChat(active) {
+  chatStatusText.innerHTML = active
+    ? `<span class="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span> Mhudumu yupo hewani (Live)`
+    : `<span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Bot Assistant (Kiotomatiki)`;
+  statusDot.className = `absolute bottom-0 right-0 w-3 h-3 ${active ? 'bg-blue-500' : 'bg-emerald-500'} border-2 border-slate-900 rounded-full`;
+}
+
+/* ---------- rendering ---------- */
+function showTyping() {
+  const d = document.createElement('div');
+  d.className = 'flex items-start';
+  d.innerHTML = '<div class="typing bg-white border border-slate-200 rounded-2xl rounded-tl-none px-3 py-3 shadow-sm"><span></span><span></span><span></span></div>';
+  chatBox.appendChild(d); scrollToBottom();
+  return d;
+}
+
+function appendMessage(msg) {
+  const isUser = msg.sender === 'user', isSystem = msg.sender === 'system';
+  const div = document.createElement('div');
+
+  if (isSystem) {
+    div.className = "flex justify-center my-2 animate-fade-in";
+    div.innerHTML = `<div class="bg-amber-100/80 border border-amber-200 text-amber-800 text-xs px-3 py-1.5 rounded-xl font-medium text-center shadow-sm max-w-[85%]">${escapeHtml(msg.text)}</div>`;
+  } else {
+    div.className = `flex flex-col ${isUser ? 'items-end' : 'items-start'} my-1 animate-fade-in`;
+    let media = '';
+    const img = safeUrl(msg.media_url), vid = safeUrl(msg.video_url), link = safeUrl(msg.link);
+    if (img) media += `<div class="mt-2 rounded-lg overflow-hidden border border-slate-200 shadow-sm max-h-48"><img src="${img}" alt="Picha" loading="lazy" class="w-full h-auto object-cover" onerror="this.parentElement.style.display='none'"></div>`;
+    const yt = (msg.video_url || '').match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([\w-]{11})/);
+    if (yt) media += `<div class="mt-2 rounded-lg overflow-hidden border border-slate-200 shadow-sm bg-black aspect-video"><iframe src="https://www.youtube.com/embed/${yt[1]}" class="w-full h-full" allowfullscreen loading="lazy" title="Video"></iframe></div>`;
+    else if (vid) media += `<div class="mt-2 rounded-lg overflow-hidden border border-slate-200 shadow-sm bg-black"><video controls preload="none" class="w-full max-h-48"><source src="${vid}" type="video/mp4">Browser yako haisapoti video hii.</video></div>`;
+    if (link) media += `<div class="mt-2.5"><a href="${link}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-3 py-2 rounded-lg shadow transition active:scale-95"><i class="fa-solid fa-download"></i> ${escapeHtml(msg.link_label || 'Fungua au pakua hapa')}</a></div>`;
+
+    const bg = isUser
+      ? 'bg-brand-600 text-white rounded-2xl rounded-tr-none shadow-md'
+      : 'bg-white text-slate-800 border border-slate-200 rounded-2xl rounded-tl-none shadow-sm';
+    div.innerHTML = `
+      <div class="max-w-[85%] p-3 ${bg}">
+        <div class="text-xs whitespace-pre-wrap leading-relaxed break-words">${formatText(msg.text)}</div>
+        ${media}
+        <div class="text-[10px] ${isUser ? 'text-brand-100' : 'text-slate-400'} text-right mt-1.5">${escapeHtml(msg.time || '')}</div>
+      </div>`;
+  }
+  chatBox.appendChild(div);
+  scrollToBottom();
+}
+
+function syncMessages(map) {
+  Object.keys(map)
+    .sort((a, b) => (map[a].timestamp || 0) - (map[b].timestamp || 0))
+    .forEach(key => {
+      if (renderedKeys.has(key)) return;
+      const m = map[key];
+      if (m.timestamp == null) return;          // wait until server timestamp resolves
+      renderedKeys.add(key);
+      if (m.internal) return;                   // admin-only notices
+      appendMessage({
+        sender: m.sender, text: m.text, media_url: m.media_url, link: m.link,
+        time: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      });
+    });
+}
+
+function updateQuickChips(level) {
+  if (isLiveChat || !level?.options) { quickChips.classList.add('hidden'); return; }
+  quickChips.innerHTML = '';
+  quickChips.classList.remove('hidden');
+  const keys = Object.keys(level.options);
+  if (currentMenuPath.length > 0) keys.push("0");
+
+  keys.forEach(key => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = "bg-white hover:bg-brand-50 border border-slate-300 hover:border-brand-500 text-slate-700 hover:text-brand-700 text-xs font-medium px-3 py-1.5 rounded-full shadow-sm transition active:scale-95 flex items-center gap-1.5 shrink-0";
+    if (key === "0") {
+      btn.innerHTML = `<i class="fa-solid fa-arrow-left text-[10px] text-amber-600"></i> ${lang === 'en' ? 'Back' : 'Rudi nyuma'}`;
+    } else {
+      const title = titleOf(level.options[key] || {}) || `Chagua ${key}`;
+      btn.innerHTML = `<span class="w-4 h-4 rounded-full bg-slate-200 text-slate-800 flex items-center justify-center text-[10px] font-bold">${escapeHtml(key)}</span> ${escapeHtml(title)}`;
+    }
+    btn.addEventListener('click', () => handleUserInput(key));
+    quickChips.appendChild(btn);
+  });
+}
+
+/* ---------- events ---------- */
+chatForm.addEventListener('submit', e => { e.preventDefault(); handleUserInput(chatInput.value); });
+
+$('reset-session-btn').addEventListener('click', () => {
+  if (!confirm("Je, unataka kuanza upya mazungumzo?")) return;
+  stopListeners();
+  try { localStorage.removeItem('mv_chatbot_session_id'); } catch (e) {}
+  chatBox.innerHTML = '';
+  quickChips.classList.add('hidden');
+  currentMenuPath = []; lang = null; isLiveChat = false; updateUIForLiveChat(false);
+  // Keep the saved name/phone: start a fresh session without asking again
+  if (currentUser && currentUser.name && currentUser.phone) {
+    sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    try { localStorage.setItem('mv_chatbot_session_id', sessionId); } catch (e) {}
+    set(ref(db, `chats/${sessionId}`), { user: currentUser, created_at: serverTimestamp(), is_live_chat: false, last_updated: serverTimestamp(), unread_admin: false });
+    startBotEngine();
+  } else initSession();
+});
+
+initSession();
+</script>
+</body>
+</html>
